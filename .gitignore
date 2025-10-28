@@ -1,0 +1,13 @@
+# Rust
+/backend/target/
+/backend/Cargo.lock
+
+# Node.js
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/*.log
+
+# OS / IDE specific
+.DS_Store
+.vscode/
