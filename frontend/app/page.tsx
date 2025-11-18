@@ -1,29 +1,33 @@
-'use client'; // App Routerを使う場合はこの行が必要
+// frontend/app/page.tsx
+'use client';
 
-import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
-  const [message, setMessage] = useState('Loading...');
+  // カスタムフックから必要な機能を取り出すだけ！
+  const { user, token, error, login, logout, loading } = useAuth();
 
-  useEffect(() => {
-    // バックエンドAPIからデータを取得する
-    fetch('http://localhost:3001/api/hello')
-      .then(res => res.json())
-      .then(data => {
-        setMessage(data.message);
-      })
-      .catch(err => {
-        console.error("Error fetching data:", err);
-        setMessage("Failed to load message from server.");
-      });
-  }, []); // 空の依存配列で、コンポーネントのマウント時に一度だけ実行
+  if (loading) return <main>読み込み中...</main>;
 
   return (
     <main style={{ padding: '2rem' }}>
-      <h1>リアルタイムチャットへようこそ！</h1>
-      <p>
-        バックエンドからのメッセージ: <strong>{message}</strong>
-      </p>
+      <h1>リアルタイムチャット "AXON"</h1>
+      
+      {!user ? (
+        <button onClick={login}>Googleでログイン</button>
+      ) : (
+        <div>
+          <h2>ようこそ、{user.displayName} さん！</h2>
+          <button onClick={logout}>ログアウト</button>
+          
+          <div style={{ marginTop: '20px', wordBreak: 'break-all' }}>
+            <h3>Token:</h3>
+            <p>{token}</p>
+          </div>
+        </div>
+      )}
+
+      {error && <p style={{ color: 'red' }}>エラー: {error}</p>}
     </main>
   );
 }
