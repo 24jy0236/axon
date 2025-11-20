@@ -16,4 +16,4 @@
 .vscode/
 
 # env
-*.env*
+.env*
