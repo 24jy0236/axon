@@ -1,8 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
-// Firebaseコンソールからコピペする設定情報
-// ※これは後で .env.local ファイルに移して隠すのがベストプラクティスだ！
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
