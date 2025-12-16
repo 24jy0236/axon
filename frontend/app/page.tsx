@@ -18,6 +18,13 @@ export default function Home() {
       ) : (
         <div>
           <h2>ようこそ、{user.displayName} さん！</h2>
+          <button onclick={
+            fetch('http://localhost:3001/api/me', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            })
+          }>API</button>
           <button onClick={logout}>ログアウト</button>
           
           <div style={{ marginTop: '20px', wordBreak: 'break-all' }}>
