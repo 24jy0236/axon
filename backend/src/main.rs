@@ -28,6 +28,7 @@ async fn main() {
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
         .allow_origin(Any);
 
     let app = Router::new()
