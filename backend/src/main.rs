@@ -4,6 +4,8 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+mod auth;
+use auth::AuthUser;
 
 #[derive(Clone)]
 struct AppState {
@@ -33,7 +35,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/hello", get(hello_handler))
         .route("/api/users", get(get_users_handler))
-        ,route("/api/me", get(get_me_handler))
+        .route("/api/me", get(get_me_handler))
         .layer(cors)
         .with_state(state);
 
@@ -62,5 +64,5 @@ async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
 }
 
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
-    Json(format!("You are authenticated. Email: {}, ID: {}", claims.email, claims.sub));
+    Json(format!("You are authenticated. Email: {}, ID: {}", claims.email, claims.sub))
 }

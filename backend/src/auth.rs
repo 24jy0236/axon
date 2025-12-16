@@ -1,9 +1,9 @@
-use axum:: {
-    async_trait,
+use async_trait::async_trait;
+use axum::{
     extract::FromRequestParts,
-    http::{request::Parts, Statuscode}
-}
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation}
+    http::{request::Parts, StatusCode}
+};
+use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
 use serde::Deserialize;
 use std::env;
 
@@ -16,7 +16,6 @@ pub struct Claims {
 
 pub struct AuthUser(pub Claims);
 
-#[async_trait]
 impl<S> FromRequestParts<S> for AuthUser
 where
     S: Send + Sync,
