@@ -102,3 +102,11 @@ docker compose up -d
 ```bash
 docker exec -it axon-db psql -U postgres -d axon-db
 ```
+
+---
+
+### RustのStructからTSへの型定義エクスポート
+```bash
+cd backend/
+cargo test export_bindings
+```
