@@ -41,7 +41,13 @@ async fn main() {
         .layer(cors)
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
+    let addr = SocketAddr::from((
+        [0, 0, 0, 0],
+        std::env::var("BACKEND_PORT")
+            .expect("BACKEND_PORT must be set")
+            .parse::<u16>()
+            .expect("Port is not integer"),
+    ));
     println!("🚀 Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -66,5 +72,8 @@ async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
 }
 
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
-    Json(format!("You are authenticated. Email: {}, ID: {}", claims.email, claims.sub))
+    Json(format!(
+        "You are authenticated. Email: {}, ID: {}",
+        claims.email, claims.sub
+    ))
 }
