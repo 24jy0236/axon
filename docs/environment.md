@@ -61,3 +61,16 @@ npm run dev
 # cd axon/backend/
 cargo run
 ```
+
+---
+
+### postgre docker
+#### 起動
+```bash
+docker compose up -d
+```
+
+#### 状態確認
+```bash
+docker compose ps
+```
