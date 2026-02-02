@@ -1,1 +1,1 @@
-- [ ] models定義のexportは`main.rs`に書かず`tests/ts_export.rs`に書こう
+- [x] models定義のexportは`main.rs`に書かず`tests/ts_export.rs`に書こう
