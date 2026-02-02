@@ -1,4 +1,12 @@
-use axum::{Json, Router, extract::State, http::Method, http::header, routing::get};
+use crate::models::{CreateRoomRequest, Room};
+use auth::AuthUser;
+use axum::{
+    extract::State,
+    http::header,
+    http::Method,
+    routing::{get, post},
+    Json, Router,
+};
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
@@ -6,7 +14,6 @@ use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 mod auth;
 mod models;
-use auth::AuthUser;
 
 #[derive(Clone)]
 struct AppState {
@@ -38,6 +45,7 @@ async fn main() {
         .route("/api/hello", get(hello_handler))
         .route("/api/users", get(get_users_handler))
         .route("/api/me", get(get_me_handler))
+        .route("/api/room/create", post(create_room_handler))
         .layer(cors)
         .with_state(state);
 
@@ -71,9 +79,32 @@ async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
     Json(vec!["DB is available".to_string()])
 }
 
+/// 認証確認
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
     Json(format!(
         "You are authenticated. Email: {}, ID: {}",
         claims.email, claims.sub
     ))
+}
+
+/// ルーム作成
+async fn create_room_handler(
+    State(state): State<AppState>,
+    AuthUser(claims): AuthUser,
+    Json(payload): Json<CreateRoomRequest>,
+) -> Result<Json<Room>, (axum::http::StatusCode, String)> {
+    let room = sqlx::query_as::<_, Room>(
+        r#"
+        INSERT INTO rooms (name, owner_id)
+        VALUES ($1, (SELECT id FROM users WHERE firebase_uid = $2))
+        RETURNING id, name, owner_id, created_at
+        "#,
+    )
+    .bind(payload.name)
+    .bind(claims.sub) // FirebaseのUIDをキーにowner_idを特定
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(room))
 }
