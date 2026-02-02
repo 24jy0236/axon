@@ -68,24 +68,3 @@ async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
     Json(format!("You are authenticated. Email: {}, ID: {}", claims.email, claims.sub))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::models::*; // modelsモジュールを使う
-    use ts_rs::TS;
-
-    #[test]
-    fn export_bindings() {
-        // 出力先のディレクトリが存在しないとエラーになることがあるので、
-        // 必要ならfs::create_dir_allなどで作る処理を入れてもいい。
-        // ここでは単純にexportを実行する。
-        
-        // ユーザー定義型の書き出し
-        User::export().expect("Failed to export User struct");
-        Room::export().expect("Failed to export Room struct");
-        CreateRoomRequest::export().expect("Failed to export CreateRoomRequest");
-        
-        println!("🎉 TypeScript bindings exported successfully!");
-    }
-}
