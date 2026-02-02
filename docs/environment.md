@@ -74,3 +74,16 @@ docker compose up -d
 ```bash
 docker compose ps
 ```
+
+#### 削除
+```bash
+docker compose down -v
+```
+
+---
+
+### migration実行
+```bash
+cd backend/
+sqlx migrate run
+```

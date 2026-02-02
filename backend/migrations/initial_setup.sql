@@ -1,7 +1,25 @@
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- UUID v7
+CREATE OR REPLACE FUNCTION uuid_generate_v7()
+RETURNS uuid
+AS $$
+DECLARE
+    timestamp    timestamptz;
+    microseconds bigint;
+    uuid_hex     text;
+BEGIN
+    timestamp    := clock_timestamp();
+    microseconds := (EXTRACT(EPOCH FROM timestamp) * 1000000)::bigint;
+
+    uuid_hex := lpad(to_hex(microseconds / 1000), 12, '0') || '7' ||
+                substr(to_hex(((microseconds % 1000) << 2) | 0x8000), 2, 3) ||
+                encode(gen_random_bytes(8), 'hex');
+
+  RETURN uuid_hex::uuid;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
 
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     google_id VARCHAR(255) NOT NULL UNIQUE,
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -10,7 +28,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE rooms (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     name VARCHAR(255) NOT NULL,
     invite_code VARCHAR(50) NOT NULL UNIQUE,
     owner_id UUID NOT NULL REFERENCES users(id),
@@ -27,7 +45,7 @@ CREATE TABLE room_members (
 );
 
 CREATE TABLE messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id),
     content TEXT NOT NULL,
@@ -37,7 +55,7 @@ CREATE TABLE messages (
 );
 
 CREATE TABLE reactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     emoji VARCHAR(10) NOT NULL,
