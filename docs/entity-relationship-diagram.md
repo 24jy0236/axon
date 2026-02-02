@@ -1,62 +1,59 @@
 ```mermaid
 erDiagram
-    %% ユーザー (Google認証で作成)
+    %% ユーザー (Firebase Auth連携)
     USERS {
-        uuid id PK "ユーザーID"
-        string google_id UK "GoogleのSubject ID"
-        string email UK "メールアドレス"
-        string name "表示名"
-        string avatar_url "アイコンURL"
-        datetime created_at "作成日時"
+        uuid id PK "UUID v7"
+        string firebase_uid UK "Firebase UID"
+        string email "NULL許容"
+        string display_name "NULL許容"
+        string photo_url "NULL許容"
+        datetime created_at
+        datetime updated_at
     }
 
-    %% チャットルーム (1授業 = 1ルーム)
+    %% チャットルーム (Slug = 招待ID)
     ROOMS {
-        uuid id PK "ルームID"
-        string name "授業名/ルーム名"
-        string invite_code UK "招待リンク用コード"
-        uuid owner_id FK "作成者(教員)ID"
-        boolean is_active "セッション有効フラグ"
-        datetime created_at "作成日時"
+        uuid id PK "UUID v7 (内部結合用)"
+        string slug UK "URL/招待コード (4-16文字 or ランダム8文字)"
+        string name "ルーム名"
+        uuid owner_id FK "作成者"
+        datetime created_at
+        datetime updated_at
     }
 
-    %% ルーム参加状況 (User <-> Room の多対多)
+    %% ルームメンバー
     ROOM_MEMBERS {
         uuid room_id PK, FK
         uuid user_id PK, FK
-        string role "権限 (TEACHER | STUDENT)"
-        datetime joined_at "参加日時"
+        string role "TEACHER | STUDENT"
+        datetime joined_at
     }
 
     %% メッセージ
     MESSAGES {
-        uuid id PK "メッセージID"
-        uuid room_id FK "ルームID"
-        uuid sender_id FK "送信者ID"
-        text content "メッセージ内容 (テキストのみ)"
-        %% DM用: NULLなら全体チャット, IDが入っていればその人(または教員グループ)宛
-        uuid recipient_id FK "宛先ユーザーID (NULL許容)" 
-        boolean is_dm "DMかどうかのフラグ"
-        datetime sent_at "送信日時"
+        uuid id PK "UUID v7"
+        uuid room_id FK
+        uuid sender_id FK
+        text content
+        uuid recipient_id FK "DM宛先 (NULL許容)"
+        boolean is_dm "DMフラグ"
+        datetime sent_at
     }
 
-    %% スタンプ/リアクション
+    %% リアクション
     REACTIONS {
-        uuid id PK "リアクションID"
-        uuid message_id FK "対象メッセージID"
-        uuid user_id FK "スタンプを押した人"
-        string emoji "絵文字コード (👍, ✅, etc)"
-        datetime created_at "押した日時"
+        uuid id PK "UUID v7"
+        uuid message_id FK
+        uuid user_id FK
+        string emoji
+        datetime created_at
     }
 
-    %% リレーション定義
-    USERS ||--o{ ROOMS : "creates (owner)"
+    USERS ||--o{ ROOMS : "creates"
     USERS ||--o{ ROOM_MEMBERS : "joins"
     ROOMS ||--o{ ROOM_MEMBERS : "has"
-    
     ROOMS ||--o{ MESSAGES : "contains"
     USERS ||--o{ MESSAGES : "sends"
-    
     MESSAGES ||--o{ REACTIONS : "receives"
     USERS ||--o{ REACTIONS : "gives"
 ```

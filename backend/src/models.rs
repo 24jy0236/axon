@@ -5,19 +5,16 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 // ユーザーモデル
-// Frontendからも参照されるので #[derive(TS)] をつける
-// #[ts(export)] をつけると、ビルド時に自動でTSファイルが書き出される設定もできるが、
-// 今回はテスト実行時に一括生成する方式をとる（制御しやすいから）。
 #[derive(Debug, Serialize, Deserialize, FromRow, TS)]
-#[ts(export_to = "../../frontend/types/generated/user.ts")] // 出力先を指定！
+#[ts(export_to = "../../frontend/types/generated/user.ts")]
 pub struct User {
     pub id: Uuid,
-    pub firebase_uid: String,
-    pub email: String,
+    pub firebase_uid: String, // DBカラム名と一致させる
+    pub email: Option<String>,
     pub display_name: Option<String>,
     pub photo_url: Option<String>,
-    // chronoのDateTimeもTS側ではstringとして扱われる（設定でDateにもできる）
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>, // DB側でNOT NULLなのでOption不要
+    pub updated_at: DateTime<Utc>,
 }
 
 // ルームモデル
@@ -25,14 +22,17 @@ pub struct User {
 #[ts(export_to = "../../frontend/types/generated/room.ts")]
 pub struct Room {
     pub id: Uuid,
+    pub slug: String, // URL/招待コード用
     pub name: String,
-    pub owner_id: Option<Uuid>,
-    pub created_at: Option<DateTime<Utc>>,
+    pub owner_id: Uuid, // DB側でNOT NULLなのでOption不要
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-// APIのリクエスト/レスポンス用DTOも定義しておくと最高だ
+// ルーム作成リクエスト
 #[derive(Debug, Serialize, Deserialize, TS)]
 #[ts(export_to = "../../frontend/types/generated/create_room_dto.ts")]
 pub struct CreateRoomRequest {
     pub name: String,
+    pub slug: Option<String>, // 任意指定。なければ自動生成
 }

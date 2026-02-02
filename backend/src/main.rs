@@ -83,7 +83,8 @@ async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
     Json(format!(
         "You are authenticated. Email: {}, ID: {}",
-        claims.email, claims.sub
+        claims.email.unwrap_or_else(|| "UNDEFINED".to_string()),
+        claims.sub
     ))
 }
 
@@ -107,4 +108,37 @@ async fn create_room_handler(
     .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(room))
+}
+
+/// ユーザー情報を同期する（いなければ作成、いれば最新情報に更新）
+pub async fn sync_user(
+    db: &Pool<Postgres>,
+    claims: &auth::Claims,
+) -> Result<uuid::Uuid, sqlx::Error> {
+    // query! ではなく query を使用。型チェックは実行時に行われる。
+    let record = sqlx::query(
+        r#"
+        INSERT INTO users (firebase_uid, email, display_name, photo_url)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (firebase_uid) 
+        DO UPDATE SET 
+            email = EXCLUDED.email,
+            display_name = EXCLUDED.display_name,
+            photo_url = EXCLUDED.photo_url,
+            updated_at = CURRENT_TIMESTAMP
+        RETURNING id
+        "#,
+    )
+    .bind(&claims.sub) // sub は String なのでそのまま
+    .bind(&claims.email) // email は Option<String> なので、SQL側では NULL 許容になる
+    .bind(&claims.name) // 同上
+    .bind(&claims.picture) // 同上
+    .fetch_one(db)
+    .await?;
+
+    // query_as を使わない場合は、手動で ID を取り出す必要がある
+    use sqlx::Row;
+    let id: uuid::Uuid = record.get("id");
+
+    Ok(id)
 }

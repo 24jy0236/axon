@@ -20,21 +20,26 @@ $$ LANGUAGE plpgsql VOLATILE;
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
-    google_id VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    avatar_url TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    firebase_uid VARCHAR(128) NOT NULL UNIQUE,
+    email VARCHAR(255),
+    display_name VARCHAR(255),
+    photo_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    slug VARCHAR(16) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     invite_code VARCHAR(50) NOT NULL UNIQUE,
     owner_id UUID NOT NULL REFERENCES users(id),
     is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE INDEX idx_rooms_slug ON rooms(slug);
 
 CREATE TABLE room_members (
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
@@ -49,7 +54,7 @@ CREATE TABLE messages (
     room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     sender_id UUID NOT NULL REFERENCES users(id),
     content TEXT NOT NULL,
-    recipient_id UUID REFERENCES users(id),
+    recipient_id UUID REFERENCES users(id), -- NULLなら全体, 値があればDM
     is_dm BOOLEAN NOT NULL DEFAULT false,
     sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

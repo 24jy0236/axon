@@ -96,6 +96,14 @@ docker compose down -v
 docker compose up -d
 ```
 
+#### DBのスキーマ大掃除
+```bash
+docker compose down -v
+docker compose up -d
+sqlx migrate run
+cargo test export_bindings
+```
+
 ---
 
 ### psql
