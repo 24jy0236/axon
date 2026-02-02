@@ -67,6 +67,7 @@ cargo run
 ### postgre docker
 #### 起動
 ```bash
+docker compose build --no-cache
 docker compose up -d
 ```
 
@@ -79,12 +80,7 @@ docker compose ps
 ```bash
 docker compose down -v
 ```
-
-#### 再ビルド
-```bash
-docker compose build --no-cache
-docker compose up -d
-```
+(`-v`はボリュームごと消去する！要注意！)
 
 ---
 
@@ -92,4 +88,17 @@ docker compose up -d
 ```bash
 cd backend/
 sqlx migrate run
+```
+
+#### migrateを一からやりなおすには、dockerをボリュームごと初期化する
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+---
+
+### psql
+```bash
+docker exec -it axon-db psql -U postgres -d axon-db
 ```
