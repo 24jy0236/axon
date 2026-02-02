@@ -80,6 +80,12 @@ docker compose ps
 docker compose down -v
 ```
 
+#### 再ビルド
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
+
 ---
 
 ### migration実行
