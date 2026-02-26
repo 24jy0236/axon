@@ -8,7 +8,10 @@ import { Room } from "@/types/generated/room";
  * @returns 
  */
 export async function createRoom(name: string, token: string): Promise<Room> {
-  const payload: CreateRoomRequest = { name };
+  const payload: CreateRoomRequest = { 
+    name, 
+    slug: null // これを足す！
+  };
   
   const res = await fetch("https://axon.asappy.xyz/api/rooms", {
     method: "POST",

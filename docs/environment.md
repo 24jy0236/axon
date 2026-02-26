@@ -98,11 +98,16 @@ docker compose up -d
 
 #### DBのスキーマ大掃除
 ```bash
+cd axon/
 docker compose down -v
+docker compose build --no-cache
 docker compose up -d
+cd backend/
 sqlx migrate run
-# 変更がある場合、ここでmodels.rsを書き換える
-cargo test export_bindings
+cargo test export_bindings # TODO: このts型定義エクスポートの順番を検討
+```
+```bash
+docker compose down -v && docker compose build --no-cache && docker compose up -d && cd backend/ && sqlx migrate run && cargo test export_bindings
 ```
 
 ---

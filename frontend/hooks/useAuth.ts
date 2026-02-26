@@ -53,9 +53,14 @@ export const useAuth = (): UseAuthReturn => {
       setError(null);
       await signInWithPopup(auth, provider);
       // onAuthStateChanged が勝手に検知してくれるので、ここで setUser しなくてOK！
-    } catch (err: any) {
-      console.error("Login Error:", err);
-      setError(err.message);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        console.error(error.message);
+        setError(error.message);
+      } else {
+        console.error("予期せぬエラーが発生しました", error);
+        setError("予期せぬエラーが発生しました");
+      }
     }
   };
 
