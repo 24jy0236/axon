@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers"; // 作成したプロバイダーをインポート
+import AuthGuard from "@/components/AuthGuard";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,7 +21,9 @@ export default function RootLayout({
       <body className={inter.className}>
         {/* アプリ全体を TanStack Query の監視下に置く！ */}
         <Providers>
-          {children}
+          <AuthGuard>
+            {children}
+          </AuthGuard>
         </Providers>
       </body>
     </html>

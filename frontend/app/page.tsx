@@ -8,7 +8,7 @@ export default function MenuPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [roomIdInput, setRoomIdInput] = useState('');
-
+  
   // 部屋に参加 (学生)
   const handleJoin = () => {
     if (!roomIdInput) return;

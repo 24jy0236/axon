@@ -124,3 +124,24 @@ docker exec -it axon-db psql -U postgres -d axon-db
 cd backend/
 cargo test export_bindings
 ```
+
+---
+
+### 2. 開発環境をセットするまでの手順
+
+```bash
+# 1. 開発用環境を起動 (ビルドなしでいきなり立ち上がる！)
+docker compose -f docker-compose.dev.yaml up -d
+
+# 2. フロントエンドの依存関係をコンテナ内でインストール
+# (初回や package.json を変えた時だけ実行)
+docker exec -it axon-frontend-dev npm install
+
+# 3. データベースのマイグレーションと型生成
+docker exec -it axon-backend-dev cargo install sqlx-cli --no-default-features --features postgres
+docker exec -it axon-backend-dev sqlx migrate run
+docker exec -it axon-backend-dev cargo test export_bindings
+
+# 4. ログを監視してホットリロードを楽しむ
+docker compose -f docker-compose.dev.yaml logs -f
+```

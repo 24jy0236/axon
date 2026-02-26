@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: axon-db-dev
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+
+  backend:
+    image: rustlang/rust:nightly-slim
+    container_name: axon-backend-dev
+    working_dir: /app
+    # 開発用の必須ツールを起動時にインストールして、コードの変更を監視！
+    command: >
+      bash -c "apt-get update && apt-get install -y pkg-config libssl-dev &&
+      cargo install cargo-watch &&
+      cargo watch -x run"
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      BACKEND_PORT: ${BACKEND_PORT}
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    volumes:
+      - ./backend:/app  # コードを同期！
+      - cargo_cache:/usr/local/cargo/registry # パッケージのDLをキャッシュ
+    depends_on:
+      - db
+
+  frontend:
+    image: node:20-alpine
+    container_name: axon-frontend-dev
+    working_dir: /app
+    command: npm run dev
+    environment:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID}
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app # コードを同期！
+      - /app/node_modules # コンテナ内のモジュールをホストの上書きから守る盾
+      - /app/.next        # Next.jsのビルドキャッシュを守る盾
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data_dev:
+  cargo_cache:
