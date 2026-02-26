@@ -1,40 +1,51 @@
-use crate::models::{CreateRoomRequest, Room};
-use auth::AuthUser;
 use axum::{
     extract::State,
-    http::header,
-    http::Method,
+    http::{header, Method},
     routing::{get, post},
     Json, Router,
 };
-use serde::Serialize;
-use sqlx::postgres::PgPoolOptions;
-use sqlx::{Pool, Postgres};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
+    TransactionTrait,
+};
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
+use ts_rs::TS;
+
 mod auth;
-mod models;
+mod entities; // 作成したEntityモジュール
+
+use auth::AuthUser;
+use entities::{prelude::*, *}; // Entityを使うためのインポート
 
 #[derive(Clone)]
 struct AppState {
-    db: Pool<Postgres>,
+    conn: DatabaseConnection, // Pool<Postgres> ではなく SeaORM のコネクション
+}
+
+// リクエストDTO
+#[derive(Deserialize, TS)]
+#[ts(export, export_to = "../../frontend/types/generated/create_room_dto.ts")]
+pub struct CreateRoomRequest {
+    pub name: String,
+    // slugは任意。なければ自動生成
+    pub slug: Option<String>, 
 }
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+    // SeaORM で接続
+    let conn = Database::connect(&database_url)
         .await
-        .expect("Failed to connect to Postgres");
+        .expect("Failed to connect to DB");
 
-    println!("Connection to the database is successful");
+    println!("Connection to the database is successful (SeaORM)");
 
-    let state = AppState { db: pool };
+    let state = AppState { conn };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
@@ -43,102 +54,110 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/hello", get(hello_handler))
-        .route("/api/users", get(get_users_handler))
         .route("/api/me", get(get_me_handler))
         .route("/api/room/create", post(create_room_handler))
         .layer(cors)
         .with_state(state);
 
-    let addr = SocketAddr::from((
-        [0, 0, 0, 0],
-        std::env::var("BACKEND_PORT")
-            .expect("BACKEND_PORT must be set")
-            .parse::<u16>()
-            .expect("Port is not integer"),
-    ));
+    let port = std::env::var("BACKEND_PORT")
+        .unwrap_or_else(|_| "13964".to_string())
+        .parse::<u16>()
+        .expect("Port is not integer");
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    
     println!("🚀 Server listening on {}", addr);
-
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-#[derive(Serialize)]
-struct HelloResponse {
-    message: String,
+async fn hello_handler() -> Json<String> {
+    Json("Hello from Rust & SeaORM! 🦀".to_string())
 }
 
-async fn hello_handler() -> Json<HelloResponse> {
-    let response = HelloResponse {
-        message: "Hello from Rust & Axum! 🦀".to_string(),
-    };
-    Json(response)
-}
-
-async fn get_users_handler(State(state): State<AppState>) -> Json<Vec<String>> {
-    let _pool = state.db;
-    Json(vec!["DB is available".to_string()])
-}
-
-/// 認証確認
 async fn get_me_handler(AuthUser(claims): AuthUser) -> Json<String> {
-    Json(format!(
-        "You are authenticated. Email: {}, ID: {}",
-        claims.email.unwrap_or_else(|| "UNDEFINED".to_string()),
-        claims.sub
-    ))
+    Json(format!("Auth: {}", claims.sub))
 }
 
-/// ルーム作成
+/// ルーム作成ハンドラ
 async fn create_room_handler(
     State(state): State<AppState>,
     AuthUser(claims): AuthUser,
     Json(payload): Json<CreateRoomRequest>,
-) -> Result<Json<Room>, (axum::http::StatusCode, String)> {
-    let room = sqlx::query_as::<_, Room>(
-        r#"
-        INSERT INTO rooms (name, owner_id)
-        VALUES ($1, (SELECT id FROM users WHERE firebase_uid = $2))
-        RETURNING id, name, owner_id, created_at
-        "#,
-    )
-    .bind(payload.name)
-    .bind(claims.sub) // FirebaseのUIDをキーにowner_idを特定
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+) -> Result<Json<room::Model>, (axum::http::StatusCode, String)> {
+    
+    // 1. まずユーザーを同期 (Upsert) して UserId を取得
+    // Transaction を使ってアトミックにやるのも良いが、今回はシンプルに実行
+    let user_id = sync_user(&state.conn, &claims)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 2. Slug の決定 (指定がなければランダム生成)
+    let slug = payload.slug.unwrap_or_else(generate_random_slug);
+
+    // 3. Room の作成 (ActiveModel を使用)
+    let new_room = room::ActiveModel {
+        id: Set(room::RoomId(uuid::Uuid::now_v7())), // Rust側で UUID v7 生成
+        slug: Set(slug),
+        name: Set(payload.name),
+        owner_id: Set(user_id), // 型安全！ user::UserId型しか入らない
+        created_at: Set(chrono::Utc::now().into()),
+        updated_at: Set(chrono::Utc::now().into()),
+    };
+
+    let room = new_room
+        .insert(&state.conn)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(room))
 }
 
-/// ユーザー情報を同期する（いなければ作成、いれば最新情報に更新）
-pub async fn sync_user(
-    db: &Pool<Postgres>,
+/// ユーザー情報を同期する (SeaORM版)
+/// 戻り値が厳格な `user::UserId` になっていることに注目！
+async fn sync_user(
+    conn: &DatabaseConnection,
     claims: &auth::Claims,
-) -> Result<uuid::Uuid, sqlx::Error> {
-    // query! ではなく query を使用。型チェックは実行時に行われる。
-    let record = sqlx::query(
-        r#"
-        INSERT INTO users (firebase_uid, email, display_name, photo_url)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (firebase_uid) 
-        DO UPDATE SET 
-            email = EXCLUDED.email,
-            display_name = EXCLUDED.display_name,
-            photo_url = EXCLUDED.photo_url,
-            updated_at = CURRENT_TIMESTAMP
-        RETURNING id
-        "#,
-    )
-    .bind(&claims.sub) // sub は String なのでそのまま
-    .bind(&claims.email) // email は Option<String> なので、SQL側では NULL 許容になる
-    .bind(&claims.name) // 同上
-    .bind(&claims.picture) // 同上
-    .fetch_one(db)
-    .await?;
+) -> Result<user::UserId, sea_orm::DbErr> {
+    // 1. 既存ユーザーを検索
+    let existing_user = User::find()
+        .filter(user::Column::FirebaseUid.eq(&claims.sub))
+        .one(conn)
+        .await?;
 
-    // query_as を使わない場合は、手動で ID を取り出す必要がある
-    use sqlx::Row;
-    let id: uuid::Uuid = record.get("id");
+    if let Some(user) = existing_user {
+        // 2. 更新 (Update)
+        let mut active: user::ActiveModel = user.into();
+        active.email = Set(claims.email.clone());
+        active.display_name = Set(claims.name.clone());
+        active.photo_url = Set(claims.picture.clone());
+        active.updated_at = Set(chrono::Utc::now().into());
+        
+        let updated = active.update(conn).await?;
+        Ok(updated.id)
+    } else {
+        // 3. 新規作成 (Insert)
+        let new_user = user::ActiveModel {
+            id: Set(user::UserId(uuid::Uuid::now_v7())),
+            firebase_uid: Set(claims.sub.clone()),
+            email: Set(claims.email.clone()),
+            display_name: Set(claims.name.clone()),
+            photo_url: Set(claims.picture.clone()),
+            created_at: Set(chrono::Utc::now().into()),
+            updated_at: Set(chrono::Utc::now().into()),
+        };
+        
+        let inserted = new_user.insert(conn).await?;
+        Ok(inserted.id)
+    }
+}
 
-    Ok(id)
+/// 8文字のランダムなSlugを生成するヘルパー
+fn generate_random_slug() -> String {
+    use rand::{distributions::Alphanumeric, Rng};
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(8)
+        .map(char::from)
+        .collect::<String>()
+        .to_lowercase()
 }
