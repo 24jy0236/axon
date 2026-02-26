@@ -6,9 +6,8 @@ use axum::{
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
-    TransactionTrait,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 use ts_rs::TS;
@@ -26,11 +25,14 @@ struct AppState {
 
 // リクエストDTO
 #[derive(Deserialize, TS)]
-#[ts(export, export_to = "../../frontend/types/generated/create_room_dto.ts")]
+#[ts(
+    export,
+    export_to = "../../frontend/types/generated/create_room_dto.ts"
+)]
 pub struct CreateRoomRequest {
     pub name: String,
     // slugは任意。なければ自動生成
-    pub slug: Option<String>, 
+    pub slug: Option<String>,
 }
 
 #[tokio::main]
@@ -64,7 +66,7 @@ async fn main() {
         .parse::<u16>()
         .expect("Port is not integer");
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    
+
     println!("🚀 Server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -84,7 +86,6 @@ async fn create_room_handler(
     AuthUser(claims): AuthUser,
     Json(payload): Json<CreateRoomRequest>,
 ) -> Result<Json<room::Model>, (axum::http::StatusCode, String)> {
-    
     // 1. まずユーザーを同期 (Upsert) して UserId を取得
     // Transaction を使ってアトミックにやるのも良いが、今回はシンプルに実行
     let user_id = sync_user(&state.conn, &claims)
@@ -131,7 +132,7 @@ async fn sync_user(
         active.display_name = Set(claims.name.clone());
         active.photo_url = Set(claims.picture.clone());
         active.updated_at = Set(chrono::Utc::now().into());
-        
+
         let updated = active.update(conn).await?;
         Ok(updated.id)
     } else {
@@ -145,7 +146,7 @@ async fn sync_user(
             created_at: Set(chrono::Utc::now().into()),
             updated_at: Set(chrono::Utc::now().into()),
         };
-        
+
         let inserted = new_user.insert(conn).await?;
         Ok(inserted.id)
     }

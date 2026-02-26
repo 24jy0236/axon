@@ -4,9 +4,16 @@ use ts_rs::TS;
 use super::user::UserId; // UserId型をインポート
 
 #[derive(Clone, Debug, PartialEq, Eq, DeriveValueType, Serialize, Deserialize, TS)]
-#[sea_orm(rs_type = "Uuid")]
 #[ts(export, export_to = "../../frontend/types/generated/branded_types.ts")]
 pub struct RoomId(pub uuid::Uuid);
+
+impl sea_orm::TryFromU64 for RoomId {
+    fn try_from_u64(_: u64) -> Result<Self, sea_orm::DbErr> {
+        Err(sea_orm::DbErr::Custom(
+            "Cannot convert u64 to RoomId (using UUID)".into(),
+        ))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, TS)]
 #[sea_orm(table_name = "rooms")]

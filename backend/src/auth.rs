@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use axum::{
     extract::FromRequestParts,
     http::{request::Parts, StatusCode},
@@ -62,7 +61,7 @@ where
         // (本来はここでGoogleのJWKエンドポイントから鍵を取得して検証するけど、
         //  今回はまず「トークンの形式チェック」と「FirebaseプロジェクトIDの一致」まで実装するよ！)
 
-        let header = decode_header(token)
+        let _header = decode_header(token)
             .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid JWT header".to_string()))?;
 
         // ※ ここでGoogleの公開鍵リストから header.kid に対応する鍵を探すのが本来のフロー。

@@ -6,9 +6,16 @@ use ts_rs::TS;
 // これにより、UserId はただの Uuid ではなくなる。
 // RoomId と取り違えるとコンパイルエラーになる。
 #[derive(Clone, Debug, PartialEq, Eq, DeriveValueType, Serialize, Deserialize, TS)]
-#[sea_orm(rs_type = "Uuid")] // DB上はUUIDとして扱う
 #[ts(export, export_to = "../../frontend/types/generated/branded_types.ts")]
 pub struct UserId(pub uuid::Uuid);
+
+impl sea_orm::TryFromU64 for UserId {
+    fn try_from_u64(_: u64) -> Result<Self, sea_orm::DbErr> {
+        Err(sea_orm::DbErr::Custom(
+            "Cannot convert u64 to UserId (using UUID)".into(),
+        ))
+    }
+}
 
 // --- Entity Definition ---
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, TS)]
