@@ -20,7 +20,7 @@ impl sea_orm::TryFromU64 for UserId {
 // --- Entity Definition ---
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, TS)]
 #[sea_orm(table_name = "users")]
-#[ts(export, export_to = "../../frontend/types/generated/user.ts")]
+#[ts(export, export_to = "../../frontend/types/generated/user.ts", rename = "User")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: UserId, // ここで NewType を使用！

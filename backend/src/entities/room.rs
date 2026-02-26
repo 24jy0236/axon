@@ -17,7 +17,7 @@ impl sea_orm::TryFromU64 for RoomId {
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize, TS)]
 #[sea_orm(table_name = "rooms")]
-#[ts(export, export_to = "../../frontend/types/generated/room.ts")]
+#[ts(export, export_to = "../../frontend/types/generated/room.ts", rename = "Room")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: RoomId,

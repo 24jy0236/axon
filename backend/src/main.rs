@@ -162,3 +162,30 @@ fn generate_random_slug() -> String {
         .collect::<String>()
         .to_lowercase()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*; // main.rs内の CreateRoomRequest などを読み込む
+    use crate::entities::user::{Model as User, UserId};
+    use crate::entities::room::{Model as Room, RoomId};
+    use ts_rs::TS;
+
+    #[test]
+    fn export_bindings() {
+        // ディレクトリが存在することを確認
+        let _ = std::fs::create_dir_all("../frontend/types/generated");
+
+        // 1. SeaORMのエンティティをエクスポート (rename指定済)
+        User::export().expect("Failed to export User");
+        Room::export().expect("Failed to export Room");
+        
+        // 2. Branded Types (NewType) をエクスポート
+        UserId::export().expect("Failed to export UserId");
+        RoomId::export().expect("Failed to export RoomId");
+        
+        // 3. APIのリクエストDTOをエクスポート
+        CreateRoomRequest::export().expect("Failed to export CreateRoomRequest");
+        
+        println!("✨ TypeScript bindings updated securely!");
+    }
+}
