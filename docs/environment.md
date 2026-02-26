@@ -101,6 +101,7 @@ docker compose up -d
 docker compose down -v
 docker compose up -d
 sqlx migrate run
+# 変更がある場合、ここでmodels.rsを書き換える
 cargo test export_bindings
 ```
 
