@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use super::user::UserId; // UserId型をインポート
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveValueType, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, DeriveValueType, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../frontend/types/generated/branded_types.ts")]
 pub struct RoomId(pub uuid::Uuid);
 

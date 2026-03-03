@@ -1,6 +1,10 @@
 use axum::{
-    extract::State,
+    extract::{
+        ws::{WebSocket, WebSocketUpgrade},
+        Path, Query, State,
+    },
     http::{header, Method},
+    response::Response,
     routing::{get, post},
     Json, Router,
 };
@@ -19,9 +23,24 @@ mod entities; // 作成したEntityモジュール
 use auth::AuthUser;
 use entities::{prelude::*, *}; // Entityを使うためのインポート
 
+use futures_util::{SinkExt, StreamExt};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{broadcast, Mutex};
+
+pub struct WsState {
+    pub rooms: Mutex<HashMap<room::RoomId, broadcast::Sender<String>>>,
+}
+
 #[derive(Clone)]
 struct AppState {
     conn: DatabaseConnection, // Pool<Postgres> ではなく SeaORM のコネクション
+    ws_state: Arc<WsState>,
+}
+
+#[derive(Deserialize)]
+pub struct WsQuery {
+    token: String,
 }
 
 // リクエストDTO
@@ -47,6 +66,18 @@ pub struct JoinRoomResponse {
     pub role: entities::room_member::Role,
 }
 
+// 🌟 リアルタイムチャットでやり取りされるメッセージの型
+#[derive(Serialize, Deserialize, Clone, TS)]
+#[ts(export, export_to = "../../frontend/types/generated/ws_message.ts")]
+pub struct WsMessagePayload {
+    pub id: String, // UUIDを文字列として送る
+    pub content: String,
+    pub sender_name: String,
+    pub sender_photo_url: Option<String>,
+    pub sender_role: entities::room_member::Role,
+    pub sent_at: String,
+}
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -59,7 +90,13 @@ async fn main() {
 
     println!("Connection to the database is successful (SeaORM)");
 
-    let state = AppState { conn };
+    // 🌟 WebSocket用のステートを初期化
+    let ws_state = Arc::new(WsState {
+        rooms: Mutex::new(HashMap::new()),
+    });
+
+    // 🌟 状態をまとめる
+    let state = AppState { conn, ws_state };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST])
@@ -70,7 +107,8 @@ async fn main() {
         .route("/api/hello", get(hello_handler))
         .route("/api/me", get(get_me_handler))
         .route("/api/room/create", post(create_room_handler))
-        .route("/api/room/:slug/join", post(join_room_handler))
+        .route("/api/room/{slug}/join", post(join_room_handler))
+        .route("/api/room/{slug}/ws", get(ws_handler))
         .layer(cors)
         .with_state(state);
 
@@ -275,9 +313,153 @@ async fn join_room_handler(
     }))
 }
 
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    Path(slug): Path<String>,
+    Query(query): Query<WsQuery>,
+    State(state): State<AppState>,
+) -> Result<Response, (axum::http::StatusCode, String)> {
+    // 1. クエリパラメータのトークンを検証
+    let claims = auth::verify_token(&query.token)?;
+
+    // 2. ユーザーを同期して UserId を取得 (のちほどメッセージ送信者を特定するため)
+    let user_id = sync_user(&state.conn, &claims)
+        .await
+        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    // 3. (オプション) 該当の部屋が存在するか、ユーザーが参加メンバーか確認する処理を入れるとより安全です
+    // 今回は一旦スキップし、接続を許可します
+
+    // 4. WebSocketのコネクションにアップグレード
+    // アップグレードが成功したら `handle_socket` という非同期タスクに処理を移譲します
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, slug, user_id)))
+}
+
+async fn handle_socket(
+    socket: WebSocket,
+    state: AppState,
+    slug: String,
+    user_id: entities::user::UserId,
+) {
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+
+    // 1. ルーム情報の取得
+    let target_room = match room::Entity::find()
+        .filter(room::Column::Slug.eq(&slug))
+        .one(&state.conn)
+        .await
+    {
+        Ok(Some(r)) => r,
+        _ => return,
+    };
+    let room_id = target_room.id;
+
+    // 🌟 2. 接続してきたユーザーの情報と権限をDBから取得しておく！
+    let current_user = user::Entity::find_by_id(user_id.clone())
+        .one(&state.conn)
+        .await
+        .unwrap()
+        .unwrap(); // 実際の運用ではエラーハンドリング推奨
+
+    let current_member = entities::room_member::Entity::find()
+        .filter(entities::room_member::Column::RoomId.eq(room_id.clone()))
+        .filter(entities::room_member::Column::UserId.eq(user_id.clone()))
+        .one(&state.conn)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let rx = {
+        let mut rooms = state.ws_state.rooms.lock().await;
+        let tx = rooms.entry(room_id.clone()).or_insert_with(|| {
+            let (tx, _rx) = broadcast::channel(100);
+            tx
+        });
+        tx.subscribe()
+    };
+
+    // 【送信タスク】変更なし (Stringとして送られてきたJSONをそのままブラウザに流すだけ)
+    let mut send_task = tokio::spawn(async move {
+        let mut rx = rx;
+        while let Ok(msg) = rx.recv().await {
+            if ws_sender
+                .send(axum::extract::ws::Message::Text(msg.into()))
+                .await
+                .is_err()
+            {
+                break;
+            }
+        }
+    });
+
+    // 🌟 【受信タスク】JSONを組み立てて配信するように変更
+    let state_clone = state.clone();
+    let room_id_clone = room_id.clone();
+    let user_id_clone = user_id.clone();
+
+    // クロージャに値をMoveさせるためのクローン
+    let sender_name = current_user
+        .display_name
+        .unwrap_or_else(|| "名無し".to_string());
+    let sender_photo_url = current_user.photo_url;
+    let sender_role = current_member.role;
+
+    let mut recv_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_receiver.next().await {
+            if let axum::extract::ws::Message::Text(text) = msg {
+                let text_str = text.to_string();
+                let message_id = uuid::Uuid::now_v7();
+
+                // 1. DBに保存
+                let new_message = entities::message::ActiveModel {
+                    id: Set(entities::message::MessageId(message_id.clone())),
+                    room_id: Set(room_id_clone.clone()),
+                    sender_id: Set(user_id_clone.clone()),
+                    content: Set(text_str.clone()),
+                    is_dm: Set(false),
+                    sent_at: Set(chrono::Utc::now().into()),
+                    ..Default::default()
+                };
+
+                if let Err(e) = new_message.insert(&state_clone.conn).await {
+                    eprintln!("Failed to save message to DB: {}", e);
+                    continue;
+                }
+
+                // 🌟 2. フロントエンドに送るJSONペイロードを作成
+                let payload = WsMessagePayload {
+                    id: message_id.to_string(),
+                    content: text_str,
+                    sender_name: sender_name.clone(),
+                    sender_photo_url: sender_photo_url.clone(),
+                    sender_role: sender_role.clone(),
+                    sent_at: chrono::Utc::now().to_rfc3339(),
+                };
+
+                // JSON文字列に変換
+                if let Ok(json_string) = serde_json::to_string(&payload) {
+                    // ルームの全員にJSONを配信
+                    let rooms = state_clone.ws_state.rooms.lock().await;
+                    if let Some(tx) = rooms.get(&room_id_clone) {
+                        let _ = tx.send(json_string);
+                    }
+                }
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = (&mut send_task) => recv_task.abort(),
+        _ = (&mut recv_task) => send_task.abort(),
+    };
+
+    println!("👋 User {:?} disconnected from room: {}", user_id, slug);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*; // main.rs内の CreateRoomRequest などを読み込む
+    use crate::entities::message::{MessageId, Model as Message};
     use crate::entities::room::{Model as Room, RoomId};
     use crate::entities::room_member::{Model as RoomMember, Role};
     use crate::entities::user::{Model as User, UserId};
@@ -292,16 +474,19 @@ mod tests {
         User::export().expect("Failed to export User");
         Room::export().expect("Failed to export Room");
         RoomMember::export().expect("Failed to export RoomMember");
+        Message::export().expect("Failed to export RoomMember");
 
         Role::export().expect("Failed to export Role");
 
         // 2. Branded Types (NewType) をエクスポート
         UserId::export().expect("Failed to export UserId");
         RoomId::export().expect("Failed to export RoomId");
+        MessageId::export().expect("Failed to export MessageId");
 
         // 3. APIのリクエストDTOをエクスポート
         CreateRoomRequest::export().expect("Failed to export CreateRoomRequest");
         JoinRoomResponse::export().expect("Failed to export JoinRoomResponse");
+        WsMessagePayload::export().expect("Failed to export WsMessagePayload");
 
         println!("✨ TypeScript bindings updated securely!");
     }
