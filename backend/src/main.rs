@@ -93,6 +93,7 @@ async fn create_room_handler(
         .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // 2. Slug の決定 (指定がなければランダム生成)
+    // TODO: バリデーション
     let slug = payload.slug.unwrap_or_else(generate_random_slug);
 
     // 3. Room の作成 (ActiveModel を使用)
@@ -166,8 +167,8 @@ fn generate_random_slug() -> String {
 #[cfg(test)]
 mod tests {
     use super::*; // main.rs内の CreateRoomRequest などを読み込む
-    use crate::entities::user::{Model as User, UserId};
     use crate::entities::room::{Model as Room, RoomId};
+    use crate::entities::user::{Model as User, UserId};
     use ts_rs::TS;
 
     #[test]
@@ -178,14 +179,14 @@ mod tests {
         // 1. SeaORMのエンティティをエクスポート (rename指定済)
         User::export().expect("Failed to export User");
         Room::export().expect("Failed to export Room");
-        
+
         // 2. Branded Types (NewType) をエクスポート
         UserId::export().expect("Failed to export UserId");
         RoomId::export().expect("Failed to export RoomId");
-        
+
         // 3. APIのリクエストDTOをエクスポート
         CreateRoomRequest::export().expect("Failed to export CreateRoomRequest");
-        
+
         println!("✨ TypeScript bindings updated securely!");
     }
 }

@@ -139,6 +139,10 @@ docker exec -it axon-frontend-dev npm install
 
 # 3. データベースのマイグレーションと型生成
 docker exec -it axon-backend-dev cargo install sqlx-cli --no-default-features --features postgres
+docker compose -f docker-compose.dev.yaml rm -s -v db
+# docker volume ls
+docker volume rm axon_postgres_data_dev
+docker compose -f docker-compose.dev.yaml up -d db
 docker exec -it axon-backend-dev sqlx migrate run
 docker exec -it axon-backend-dev cargo test export_bindings
 

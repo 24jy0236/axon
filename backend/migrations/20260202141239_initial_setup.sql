@@ -32,7 +32,6 @@ CREATE TABLE rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     slug VARCHAR(16) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
-    invite_code VARCHAR(50) NOT NULL UNIQUE,
     owner_id UUID NOT NULL REFERENCES users(id),
     is_active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
