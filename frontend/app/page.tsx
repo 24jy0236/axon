@@ -65,7 +65,7 @@ export default function MenuPage() {
         router.push(`/room/${newRoom.id}`);
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('ルーム作成エラー:', error);
       // バックエンドからの一意制約違反（既出のID）などを想定
       setCreateError('ルームの作成に失敗しました。指定したIDが既に使用されている可能性があります。');

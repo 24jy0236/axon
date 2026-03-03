@@ -50,6 +50,7 @@ pub struct Model {
     pub slug: String,
     pub name: String,
     pub owner_id: UserId, // ここも厳格に UserId 型！
+    pub is_active: bool,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }

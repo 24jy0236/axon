@@ -1,12 +1,12 @@
 // frontend/hooks/useAuth.ts
 import { useState, useEffect } from 'react';
 import { auth } from '@/lib/firebase'; // パスエイリアス(@)を使うとスマート！
-import { 
-  GoogleAuthProvider, 
-  signInWithPopup, 
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged,
-  User 
+  User
 } from "firebase/auth";
 
 // フックが返す値の型定義
@@ -36,7 +36,7 @@ export const useAuth = (): UseAuthReturn => {
         } else {
           setToken(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Auth State Change Error:", err);
       } finally {
         setLoading(false);
@@ -68,9 +68,13 @@ export const useAuth = (): UseAuthReturn => {
     try {
       setError(null);
       await firebaseSignOut(auth);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Logout Error:", err);
-      setError(err.message);
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("予期せぬエラーが発生しました");
+      }
     }
   };
 
