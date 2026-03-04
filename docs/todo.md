@@ -1,3 +1,4 @@
 - [ ] `backend/src/auth.rs` `insecure_disable_signature_validation()`
 - [ ] `backend/src/main.rs` ハンドラが増える一方なのでファイルを分ける
 - [ ] `.env` BASE_URL
+- [ ] next branded types
