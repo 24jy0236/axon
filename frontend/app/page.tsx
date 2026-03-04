@@ -53,7 +53,7 @@ export default function MenuPage() {
         slug: slug,
       };
 
-      // APIが完了するまでここで待機（await）します！
+      // APIが完了するまでここでawait
       const newRoom = await createRoom(token, payload);
 
       // バックエンドから返ってきた作成済みのSlug（またはID）を使って遷移

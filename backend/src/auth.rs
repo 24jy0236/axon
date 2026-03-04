@@ -19,7 +19,7 @@ pub struct Claims {
     pub iss: String,
 }
 
-// 🌟 新しく追加：トークン文字列を受け取って検証する関数
+/// トークン文字列を受け取って検証する
 pub fn verify_token(token: &str) -> Result<Claims, (StatusCode, String)> {
     let _header = decode_header(token)
         .map_err(|_| (StatusCode::UNAUTHORIZED, "Invalid JWT header".to_string()))?;
@@ -27,7 +27,7 @@ pub fn verify_token(token: &str) -> Result<Claims, (StatusCode, String)> {
     let project_id = env::var("FIREBASE_PROJECT_ID").unwrap_or_default();
 
     let mut validation = Validation::new(Algorithm::RS256);
-    validation.insecure_disable_signature_validation(); // 開発用
+    validation.insecure_disable_signature_validation(); // TODO: 開発用バイパス
     validation.set_audience(&[&project_id]);
 
     let dummy_key = DecodingKey::from_secret(&[]);

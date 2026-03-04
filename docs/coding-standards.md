@@ -37,15 +37,15 @@ flowchart TD
 
     subgraph TS[Frontend Layer: TypeScript]
         GeneratedTypes[Generated Branded Types e.g., RoomId]
-        Zod[Zod Schemas （Runtime Validation）]
         TanStack[TanStack Query （Data Fetching）]
+        Zod[Zod Schemas （Runtime Validation）]
         Zustand[Zustand + ts-pattern （State Management）]
         UI[React Components]
 
         TSRS -->|d.ts| GeneratedTypes
-        GeneratedTypes --> Zod
-        Zod --> TanStack
-        TanStack --> Zustand
+        GeneratedTypes --> TanStack
+        TanStack --> Zod
+        Zod --> Zustand
         Zustand --> UI
     end
 ```

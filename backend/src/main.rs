@@ -83,19 +83,18 @@ async fn main() {
     dotenvy::dotenv().ok();
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    // SeaORM で接続
+    // SeaORM接続
     let conn = Database::connect(&database_url)
         .await
         .expect("Failed to connect to DB");
 
     println!("Connection to the database is successful (SeaORM)");
 
-    // 🌟 WebSocket用のステートを初期化
+    // WebSocket用のステートを初期化
     let ws_state = Arc::new(WsState {
         rooms: Mutex::new(HashMap::new()),
     });
 
-    // 🌟 状態をまとめる
     let state = AppState { conn, ws_state };
 
     let cors = CorsLayer::new()
@@ -378,7 +377,7 @@ async fn handle_socket(
         tx.subscribe()
     };
 
-    // 【送信タスク】変更なし (Stringとして送られてきたJSONをそのままブラウザに流すだけ)
+    // 送信タスク
     let mut send_task = tokio::spawn(async move {
         let mut rx = rx;
         while let Ok(msg) = rx.recv().await {
@@ -392,7 +391,7 @@ async fn handle_socket(
         }
     });
 
-    // 🌟 【受信タスク】JSONを組み立てて配信するように変更
+    // 受信タスク
     let state_clone = state.clone();
     let room_id_clone = room_id.clone();
     let user_id_clone = user_id.clone();
@@ -410,7 +409,7 @@ async fn handle_socket(
                 let text_str = text.to_string();
                 let message_id = uuid::Uuid::now_v7();
 
-                // 1. DBに保存
+                // DBに保存
                 let new_message = entities::message::ActiveModel {
                     id: Set(entities::message::MessageId(message_id.clone())),
                     room_id: Set(room_id_clone.clone()),
@@ -426,7 +425,7 @@ async fn handle_socket(
                     continue;
                 }
 
-                // 🌟 2. フロントエンドに送るJSONペイロードを作成
+                // フロントエンドに送るJSONペイロードを作成
                 let payload = WsMessagePayload {
                     id: message_id.to_string(),
                     content: text_str,
@@ -456,6 +455,7 @@ async fn handle_socket(
     println!("👋 User {:?} disconnected from room: {}", user_id, slug);
 }
 
+/// TS型定義エクスポート
 #[cfg(test)]
 mod tests {
     use super::*; // main.rs内の CreateRoomRequest などを読み込む
